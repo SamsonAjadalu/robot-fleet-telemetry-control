@@ -1,0 +1,16 @@
+{
+  "name": "robot-fleet-aws",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": { "cdk": "cdk", "typecheck": "tsc --noEmit" },
+  "dependencies": {
+    "aws-cdk-lib": "^2.200.0",
+    "constructs": "^10.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "aws-cdk": "^2.1020.0",
+    "ts-node": "^10.9.2",
+    "typescript": "~5.9.3"
+  }
+}
