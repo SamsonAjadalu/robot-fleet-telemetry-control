@@ -1,18 +1,19 @@
 from fastapi import FastAPI, Depends, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from typing import Dict
 import database
 import asyncio
 import math
 import datetime
 import os
+from connection_manager import ConnectionManager
 
 # Create database tables (based on the latest database.py schema)
 database.Base.metadata.create_all(bind=database.engine)
 
-app = FastAPI(title="Metal-to-Cloud API")
+app = FastAPI(title="Robot Fleet Telemetry & Control API")
 
 # Browser origins allowed to call REST (not the API's own URL). Comma-separated in env.
 _origins_raw = os.getenv(
@@ -65,51 +66,8 @@ def get_db():
         db.close()
 
 
-# 2. Core Brain: WebSocket Connection Manager
-
-class ConnectionManager:
-    def __init__(self):
-        # Store the single frontend connection
-        self.frontend_ws: WebSocket = None
-        # Store all active robot connections, format: {"tb3_01": WebSocket, ...}
-        self.active_robots: Dict[str, WebSocket] = {}
-
-    async def connect_frontend(self, ws: WebSocket):
-        await ws.accept()
-        self.frontend_ws = ws
-        print("🟢 Frontend connected!")
-
-    async def connect_robot(self, ws: WebSocket, robot_id: str):
-        await ws.accept()
-        self.active_robots[robot_id] = ws
-        print(f"🟢 Robot [{robot_id}] connected!")
-
-    def disconnect_frontend(self):
-        self.frontend_ws = None
-        print("🔴 Frontend disconnected.")
-
-    def disconnect_robot(self, robot_id: str):
-        if robot_id in self.active_robots:
-            del self.active_robots[robot_id]
-            print(f"🔴 Robot [{robot_id}] disconnected.")
-
-    async def send_to_frontend(self, message: dict):
-        # Forward the received data as-is to the frontend, if connected
-        if self.frontend_ws:
-            await self.frontend_ws.send_json(message)
-            #print(f"📤 [Routed to Frontend] Message type: {message.get('type')}")
-
-    async def send_to_robot(self, robot_id: str, message: dict):
-        # Look up the robot in the dictionary and send the message
-        if robot_id in self.active_robots:
-            ws = self.active_robots[robot_id]
-            await ws.send_json(message)
-            print(f"📥 [Routed to Robot {robot_id}] Message type: {message.get('type')}")
-        else:
-            print(f"⚠️ Cannot send. Robot [{robot_id}] is offline.")
-
-# Instantiate the connection manager
-manager = ConnectionManager()
+# Redis-backed WebSocket connection manager
+manager = ConnectionManager(redis_url=os.getenv("REDIS_URL"))
 
 # High-Concurrency Engine: Batch Insert
 # ==========================================
@@ -142,15 +100,38 @@ async def batch_save_to_db():
 # When the FastAPI server starts, automatically spawn this background worker
 @app.on_event("startup")
 async def startup_event():
-    asyncio.create_task(batch_save_to_db())
+    await manager.start()
+    app.state.batch_task = asyncio.create_task(batch_save_to_db())
     print("🚀 Background batch writer started!")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    app.state.batch_task.cancel()
+    try:
+        await app.state.batch_task
+    except asyncio.CancelledError:
+        pass
+    await manager.stop()
 
 # 3. REST APIs (fleet overview and HTTP telemetry ingest)
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "service": "metal-to-cloud-backend"}
+    return {"status": "healthy", "service": "robot-fleet-api"}
 
+
+@app.get("/ready")
+@app.get("/health/ready")
+def readiness_check():
+    status = manager.readiness_status()
+    return JSONResponse(
+        status_code=200 if status["ready"] else 503,
+        content={
+            "status": "ready" if status["ready"] else "not_ready",
+            "service": "robot-fleet-api",
+            **status,
+        },
+    )
 
 @app.get("/status")
 def check_status():
@@ -227,7 +208,7 @@ async def frontend_endpoint(websocket: WebSocket):
             if robot_id:
                 await manager.send_to_robot(robot_id, data)
     except WebSocketDisconnect:
-        manager.disconnect_frontend()
+        manager.disconnect_frontend(websocket)
 
 
 # Endpoint B: Dedicated connection for all Robots
