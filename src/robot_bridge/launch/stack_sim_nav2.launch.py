@@ -51,12 +51,12 @@ def _default_backend_base_url() -> str:
     if ws_root:
         candidate_files.extend(
             [
-                os.path.join(ws_root, '.env.telemetry'),
+                os.path.join(ws_root, '.env.robot'),
             ]
         )
     candidate_files.extend(
         [
-            os.path.join(os.getcwd(), '.env.telemetry'),
+            os.path.join(os.getcwd(), '.env.robot'),
         ]
     )
 

@@ -1,5 +1,5 @@
 .env
-.env.telemetry
+.env.robot
 
 # Logs
 logs
@@ -63,3 +63,6 @@ docker/
 # Ad-hoc dev scripts (not part of main workflow)
 scripts/self_test_fleet_nav2_tf.py
 scripts/ws_frontend_log.py
+
+# AWS CDK build output
+cdk.out/
