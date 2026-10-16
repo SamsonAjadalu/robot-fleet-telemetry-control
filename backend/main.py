@@ -2,6 +2,7 @@ from fastapi import FastAPI, Depends, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from pydantic import BaseModel
 import database
 import asyncio
@@ -10,8 +11,10 @@ import datetime
 import os
 from connection_manager import ConnectionManager
 
-# Create database tables (based on the latest database.py schema)
-database.Base.metadata.create_all(bind=database.engine)
+# Serialize initial schema creation across API instances sharing PostgreSQL.
+with database.engine.begin() as connection:
+    connection.execute(text("SELECT pg_advisory_xact_lock(8247612)"))
+    database.Base.metadata.create_all(bind=connection)
 
 app = FastAPI(title="Robot Fleet Telemetry & Control API")
 
