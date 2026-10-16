@@ -12,29 +12,28 @@ const LiveMapViewer: React.FC<LiveMapViewerProps> = ({ robotId, telemetry, goalE
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [goalToast, setGoalToast] = useState<string | null>(null);
 
-    // Map configuration (simulating static map from DevOps/S3)
+    // Map image and metadata for the robot's map ID
     const [mapLoaded, setMapLoaded] = useState(false);
     const mapImageRef = useRef<HTMLImageElement | null>(null);
 
     // Map Metadata state from YAML
     const [mapMeta, setMapMeta] = useState<{ resolution: number; originX: number; originY: number } | null>(null);
 
-    // Scale factors: these would typically come from a map.yaml metadata file
-    // For now we assume a simple map scale: 1 pixel = 0.05 meters (resolution)
-    // const _resolution = 0.05;
-    // const _originX = -10.0; // map origin in meters
-    // const _originY = -10.0;
 
-    // Fetch map via Nginx reverse proxy (avoids CORS issues)
-    // Nginx proxies /maps/* → DigitalOcean Spaces bucket
+    // Map files are served at /maps/ by Vite locally or S3/CloudFront on AWS.
     const mapId = telemetry?.map_id || 'map_01';
     const mapUrlPng = `/maps/${mapId}/${mapId}.png`;
     const mapUrlYaml = `/maps/${mapId}/${mapId}.yaml`;
 
     useEffect(() => {
         // Fetch YAML metadata
+        setMapLoaded(false);
+        setMapMeta(null);
         fetch(mapUrlYaml)
-            .then(res => res.text())
+            .then(res => {
+                if (!res.ok) throw new Error(`Map metadata request failed: ${res.status}`);
+                return res.text();
+            })
             .then(text => {
                 const parsed = yaml.load(text) as any;
                 if (parsed && typeof parsed.resolution === 'number' && Array.isArray(parsed.origin)) {
