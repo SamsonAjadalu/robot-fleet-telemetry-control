@@ -1,28 +1,20 @@
 # Contributing
 
-## Issues
-
-[Open an issue](https://github.com/SamsonAjadalu/metal-to-cloud-telemetry/issues) for bugs or questions. Say what you expected, what happened, and how to reproduce.
-
-## Branches
-
-- Work in **`telemetry`**, **`frontend`**, **`backend`**, etc.
-- **`prod`** = stable cloud deployment.
-- **`main`** = stable snapshot (updated when a feature is done).
+Open an [issue](https://github.com/SamsonAjadalu/robot-fleet-telemetry-control/issues) to report a bug or propose a change. Include the expected behavior, the observed result, and steps to reproduce.
 
 ## Pull requests
 
-Target a **dev** branch above, not `main`/`prod` for WIP. Small, focused PRs; describe what changed and why.
+Create a branch from `main` and submit a focused pull request to `main`. Describe the change and how you tested it. The GitHub Actions workflow checks the frontend build, AWS infrastructure synthesis, Redis relay tests, and local WebSocket routing.
 
-If you changed `src/robot_bridge`:
+For changes to the ROS 2 bridge, run:
 
 ```bash
 source /opt/ros/humble/setup.bash
-cd /path/to/metal-to-cloud-telemetry
 colcon build --packages-select robot_bridge --symlink-install
-colcon test --packages-select robot_bridge && colcon test-result --verbose
+colcon test --packages-select robot_bridge
+colcon test-result --verbose
 ```
 
-No secrets in git — use `.env.telemetry` locally. Don’t change WebSocket/JSON shapes in `TELEMETRY_README.md` without team agreement.
+Use local environment variables for credentials. The [robot setup guide](docs/robot-setup.md) documents the WebSocket message formats.
 
-Contributions are under the **MIT License** (`LICENSE`).
+Contributions are covered by the [MIT License](LICENSE).
